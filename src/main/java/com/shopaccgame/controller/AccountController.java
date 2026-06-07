@@ -405,6 +405,61 @@ public class AccountController {
         }
     }
 
+    @GetMapping("/seller/{sellerId}")
+    public ResponseEntity<Map<String, Object>> getAccountsBySeller(
+            @PathVariable("sellerId") Integer sellerId
+    ) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            User seller = userRepository.findById(sellerId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy người bán"));
+
+            List<Account> accounts = accountRepository.findBySellerId(sellerId);
+            List<Map<String, Object>> data = new ArrayList<>();
+            for (Account acc : accounts) {
+                if (!"SHOWING".equalsIgnoreCase(acc.getStatus())) {
+                    continue;
+                }
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", acc.getId());
+                map.put("title", acc.getTitle());
+                map.put("description", acc.getDescription());
+                map.put("price", acc.getPrice());
+                map.put("original_price", acc.getOriginalPrice());
+                map.put("server", acc.getServer());
+                map.put("level", acc.getLevel());
+                map.put("rank_level", acc.getRankLevel());
+                map.put("champions_count", acc.getChampionsCount());
+                map.put("skins_count", acc.getSkinsCount());
+                map.put("security_status", acc.getSecurityStatus());
+                map.put("status", acc.getStatus());
+                map.put("images", acc.getImages());
+                map.put("is_featured", acc.getIsFeatured());
+                map.put("view_count", acc.getViewCount());
+                map.put("category_name", acc.getCategory().getName());
+                map.put("category_slug", acc.getCategory().getSlug());
+                map.put("seller_name", acc.getSeller().getUsername());
+                map.put("seller_phone", acc.getSeller().getPhoneZalo());
+                data.add(map);
+            }
+
+            Map<String, Object> sellerInfo = new HashMap<>();
+            sellerInfo.put("id", seller.getId());
+            sellerInfo.put("username", seller.getUsername());
+            sellerInfo.put("phone_zalo", seller.getPhoneZalo());
+            sellerInfo.put("created_at", seller.getCreatedAt());
+
+            response.put("success", true);
+            response.put("seller", sellerInfo);
+            response.put("data", data);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+    }
+
     @GetMapping("/post-fee-percent")
     public ResponseEntity<Map<String, Object>> getPostFeePercent() {
         Map<String, Object> response = new HashMap<>();
