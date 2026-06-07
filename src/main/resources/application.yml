@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/shop_acc_game?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+jwt:
+  secret: ${JWT_SECRET:shopaccgame_super_secret_jwt_2024}
+  expiration-ms: 604800000
+
+r2:
+  account-id: ${R2_ACCOUNT_ID:502eff55d45687ff5674ae379fafd17c}
+  api-token: ${R2_API_TOKEN}
+  bucket-name: ${R2_BUCKET_NAME:cho-acc-lienquan}
+  public-url: ${R2_PUBLIC_URL:https://pub-331231a8c21d4e6db2f224146773362c.r2.dev}
+
