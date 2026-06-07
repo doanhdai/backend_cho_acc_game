@@ -26,7 +26,13 @@ jwt:
 
 r2:
   account-id: ${R2_ACCOUNT_ID:502eff55d45687ff5674ae379fafd17c}
-  api-token: ${R2_API_TOKEN}
+  api-token: ${R2_API_TOKEN:}
   bucket-name: ${R2_BUCKET_NAME:cho-acc-lienquan}
   public-url: ${R2_PUBLIC_URL:https://pub-331231a8c21d4e6db2f224146773362c.r2.dev}
 
+# --- Cloudinary (dùng cho upload ảnh skin) ---
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:duxjzuspo}
+  api-key: ${CLOUDINARY_API_KEY:337217791466657}
+  api-secret: ${CLOUDINARY_API_SECRET:4pncoyayxDmF4xUYYyZV0A5b0uw}
+  folder: skins

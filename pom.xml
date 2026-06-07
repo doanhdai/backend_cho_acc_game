@@ -81,6 +81,7 @@
             <artifactId>payos-java</artifactId>
             <version>1.0.1</version>
         </dependency>
+
     </dependencies>
 
     <build>
