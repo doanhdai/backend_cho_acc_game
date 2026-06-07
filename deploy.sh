@@ -23,7 +23,7 @@ mvn clean package -DskipTests
 
 # 4. Copy file JAR mới ra thư mục chạy chính
 echo "--> 3. Đang cập nhật file chạy JAR..."
-cp target/shop-acc-game-0.0.1-SNAPSHOT.jar shop-acc-game.jar
+cp target/shop-acc-game-backend-1.0.0.jar shop-acc-game.jar
 
 # 5. Khởi động lại dịch vụ backend
 echo "--> 4. Đang khởi động lại dịch vụ shop-backend.service..."
