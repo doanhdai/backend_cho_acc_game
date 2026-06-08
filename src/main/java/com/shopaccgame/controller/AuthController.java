@@ -12,6 +12,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Value;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.Collections;
+import java.util.UUID;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -21,9 +30,39 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private static final NetHttpTransport googleTransport = new NetHttpTransport();
+    private static final GsonFactory googleJsonFactory = GsonFactory.getDefaultInstance();
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+
+    @Value("${google.client-id}")
+    private String googleClientId;
+
+    private void setTokenCookie(HttpServletResponse response, String token) {
+        Cookie cookie = new Cookie("token", token);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // Đặt true ở production khi dùng HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(86400); // 1 ngày
+        response.addCookie(cookie);
+    }
+
+    @GetMapping("/logout")
+    public ResponseEntity<Map<String, Object>> logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("token", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/");
+        cookie.setMaxAge(0); // Hủy cookie lập tức
+        response.addCookie(cookie);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("message", "Đăng xuất thành công");
+        return ResponseEntity.ok(resp);
+    }
 
     @Data
     public static class RegisterRequest {
@@ -42,8 +81,13 @@ public class AuthController {
         private String password;
     }
 
+    @Data
+    public static class GoogleAuthRequest {
+        private String token;
+    }
+
     @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest req) {
+    public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest req, HttpServletResponse httpServletResponse) {
         Map<String, Object> response = new HashMap<>();
         
         if (req.getUsername() == null || req.getEmail() == null || req.getPassword() == null || req.getPhoneZalo() == null) {
@@ -87,6 +131,8 @@ public class AuthController {
         userMap.put("phone_zalo", newUser.getPhoneZalo());
         userMap.put("full_name", newUser.getFullName());
 
+        setTokenCookie(httpServletResponse, token);
+
         response.put("success", true);
         response.put("message", "Đăng ký thành công");
         response.put("token", token);
@@ -96,7 +142,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest req, HttpServletResponse httpServletResponse) {
         Map<String, Object> response = new HashMap<>();
         
         if (req.getUsername() == null || req.getPassword() == null) {
@@ -141,6 +187,8 @@ public class AuthController {
         userMap.put("frozen_balance", user.getFrozenBalance());
         userMap.put("avatar", user.getAvatar());
         userMap.put("phone_zalo", user.getPhoneZalo());
+
+        setTokenCookie(httpServletResponse, token);
 
         response.put("success", true);
         response.put("message", "Đăng nhập thành công");
@@ -189,5 +237,91 @@ public class AuthController {
         response.put("user", userMap);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<Map<String, Object>> googleLogin(@RequestBody GoogleAuthRequest req, HttpServletResponse httpServletResponse) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (req.getToken() == null || req.getToken().isEmpty()) {
+            response.put("success", false);
+            response.put("message", "Token không được để trống");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        try {
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(googleTransport, googleJsonFactory)
+                    .setAudience(Collections.singletonList(googleClientId))
+                    .build();
+
+            GoogleIdToken idToken = verifier.verify(req.getToken());
+            if (idToken == null) {
+                response.put("success", false);
+                response.put("message", "Google Token không hợp lệ hoặc đã hết hạn");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String email = payload.getEmail();
+            String name = (String) payload.get("name");
+            String pictureUrl = (String) payload.get("picture");
+
+            Optional<User> userOpt = userRepository.findByEmail(email);
+            User user;
+
+            if (userOpt.isPresent()) {
+                user = userOpt.get();
+                if ("banned".equalsIgnoreCase(user.getStatus())) {
+                    response.put("success", false);
+                    response.put("message", "Tài khoản của bạn đã bị khóa vĩnh viễn do vi phạm quy tắc của sàn.");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                }
+            } else {
+                String username = email.split("@")[0];
+                if (userRepository.existsByUsername(username)) {
+                    username = username + "_" + UUID.randomUUID().toString().substring(0, 6);
+                }
+
+                user = User.builder()
+                        .username(username)
+                        .email(email)
+                        .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                        .fullName(name != null ? name : username)
+                        .avatar(pictureUrl)
+                        .phoneZalo("0000000000") // Mặc định để thỏa mãn database constraint
+                        .role("user")
+                        .status("active")
+                        .build();
+
+                user = userRepository.save(user);
+            }
+
+            String jwtToken = jwtService.generateToken(user);
+
+            Map<String, Object> userMap = new HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("username", user.getUsername());
+            userMap.put("email", user.getEmail());
+            userMap.put("full_name", user.getFullName());
+            userMap.put("role", user.getRole());
+            userMap.put("balance", user.getBalance());
+            userMap.put("frozen_balance", user.getFrozenBalance());
+            userMap.put("avatar", user.getAvatar());
+            userMap.put("phone_zalo", user.getPhoneZalo());
+
+            setTokenCookie(httpServletResponse, jwtToken);
+
+            response.put("success", true);
+            response.put("message", "Đăng nhập Google thành công");
+            response.put("token", jwtToken);
+            response.put("user", userMap);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Xác thực Google thất bại: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
 }

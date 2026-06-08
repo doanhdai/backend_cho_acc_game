@@ -23,23 +23,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String username;
-        final Integer userId;
-        final String role;
+        String jwt = null;
+        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (jakarta.servlet.http.Cookie cookie : cookies) {
+                if ("token".equals(cookie.getName())) {
+                    jwt = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (jwt == null) {
+            final String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                jwt = authHeader.substring(7);
+            }
+        }
+
+        final String finalJwt = jwt;
+        if (finalJwt == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        jwt = authHeader.substring(7);
         try {
-            if (jwtService.validateToken(jwt)) {
-                username = jwtService.extractUsername(jwt);
-                userId = jwtService.extractUserId(jwt);
-                role = jwtService.extractRole(jwt);
+            if (jwtService.validateToken(finalJwt)) {
+                String username = jwtService.extractUsername(finalJwt);
+                Integer userId = jwtService.extractUserId(finalJwt);
+                String role = jwtService.extractRole(finalJwt);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role.toUpperCase());

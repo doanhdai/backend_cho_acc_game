@@ -59,8 +59,8 @@ public class OrderController {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // 1. Fetch account
-        Account account = accountRepository.findById(req.getAccount_id())
+        // 1. Fetch account with WRITE LOCK
+        Account account = accountRepository.findByIdWithWriteLock(req.getAccount_id())
                 .orElse(null);
         if (account == null) {
             response.put("success", false);

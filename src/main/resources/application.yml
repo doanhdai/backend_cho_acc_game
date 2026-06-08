@@ -36,3 +36,6 @@ cloudinary:
   api-key: ${CLOUDINARY_API_KEY:337217791466657}
   api-secret: ${CLOUDINARY_API_SECRET:4pncoyayxDmF4xUYYyZV0A5b0uw}
   folder: skins
+
+google:
+  client-id: 345933588897-r7236okph716h3auo58tdvsvius8596d.apps.googleusercontent.com

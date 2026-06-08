@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +22,18 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final int MAX_REQUESTS_PER_MINUTE = 120;
     private static final int MAX_POST_REQUESTS_PER_MINUTE = 20; 
     private static final long WINDOW_SIZE_MS = TimeUnit.MINUTES.toMillis(1);
+
+    @Scheduled(fixedRate = 300000) // 5 minutes
+    public void cleanupRequestHistory() {
+        long now = System.currentTimeMillis();
+        requestHistory.entrySet().removeIf(entry -> {
+            List<Long> timestamps = entry.getValue();
+            synchronized (timestamps) {
+                timestamps.removeIf(time -> (now - time) > WINDOW_SIZE_MS);
+                return timestamps.isEmpty();
+            }
+        });
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
